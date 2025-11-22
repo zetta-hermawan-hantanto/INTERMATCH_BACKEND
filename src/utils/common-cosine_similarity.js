@@ -8,127 +8,88 @@ const InternshipModel = require('../models/internships.model');
 const { ApiError } = require('./common-error');
 
 /**
- * Normalize both vectors to have the same keys
- * @param {Object} tfIdfValuesOrigin
- * @param {Object} tfIdfValuesInternship
- * @returns {Object}
+ * Builds a comprehensive vocabulary from the terms present in the origin TF-IDF values and all internship vectors.
+ * @param {Object} tfIdfValuesOrigin - The TF-IDF values of the origin text (e.g., user profile or search query).
+ * @param {Array<Object>} internships - An array of internship objects, each containing a `vector.value` property with TF-IDF values.
+ * @returns {Array<string>} An array of unique terms representing the combined vocabulary.
  */
-function NormalizeVectorBoth(tfIdfValuesOrigin, tfIdfValuesInternship) {
-  try {
-    // *************** Validate tfIdfValuesOrigin parameter
-    if (!tfIdfValuesOrigin || lodash.isEmpty(tfIdfValuesOrigin)) {
-      throw new ApiError(400, 'Invalid tfIdfValuesOrigin or tfIdfValuesInternship parameter provided');
-    }
+function BuildVocabulary(tfIdfValuesOrigin, internships) {
+  // *************** Initialize vocabulary set
+  const vocabulary = new Set();
 
-    // *************** Validate tfIdfValuesInternship parameter
-    if (!tfIdfValuesInternship || lodash.isEmpty(tfIdfValuesInternship)) {
-      throw new ApiError(400, 'Invalid tfIdfValuesOrigin or tfIdfValuesInternship parameter provided');
-    }
+  // *************** add student terms
+  Object.keys(tfIdfValuesOrigin).forEach((term) => vocabulary.add(term));
 
-    // *************** Initialize objects to store normalized TF-IDF values
-    const tfIdfValuesOriginNormalized = {};
-    const tfIdfValuesInternshipNormalized = {};
+  // *************** add internship terms
+  internships.forEach((doc) => {
+    Object.keys(doc.vector.value).forEach((term) => vocabulary.add(term));
+  });
 
-    // *************** Normalize tfIdfValuesOrigin based on keys present in tfIdfValuesInternship
-    for (const key in tfIdfValuesOrigin) {
-      if (tfIdfValuesInternship.hasOwnProperty(key)) {
-        tfIdfValuesOriginNormalized[key] = tfIdfValuesOrigin[key];
-      } else {
-        tfIdfValuesOriginNormalized[key] = 0;
-      }
-    }
+  // *************** final vocabulary array
+  const vocab = Array.from(vocabulary);
 
-    // *************** Normalize tfIdfValuesInternship based on keys present in tfIdfValuesOrigin
-    for (const key in tfIdfValuesInternship) {
-      if (tfIdfValuesOrigin.hasOwnProperty(key)) {
-        tfIdfValuesInternshipNormalized[key] = tfIdfValuesInternship[key];
-      } else {
-        tfIdfValuesInternshipNormalized[key] = 0;
-      }
-    }
-
-    // *************** Return both normalized vectors
-    return { tfIdfValuesOriginNormalized, tfIdfValuesInternshipNormalized };
-  } catch (error) {
-    // *************** Log and re-throw any errors encountered during normalization
-    console.log(error.stack);
-
-    throw error;
-  }
+  // *************** Return the vocabulary array
+  return vocab;
 }
 
 /**
- * Calculates the dot product of two normalized TF-IDF vectors.
- * @param {Object} tfIdfValuesOriginNormalized - The normalized TF-IDF values of the origin text.
- * @param {Object} tfIdfValuesInternshipNormalized - The normalized TF-IDF values of the internship text.
+ * Builds a vector representation of TF-IDF values based on a given vocabulary.
+ * Terms not present in the TF-IDF object will have a value of 0 in the vector.
+ * @param {Object} tfidf - An object where keys are terms and values are their TF-IDF scores.
+ * @param {Array<string>} vocab - An array of terms representing the vocabulary order for the vector.
+ * @returns {Array<number>} A numerical vector where each element corresponds to a term in the vocabulary.
+ */
+function BuildVector(tfidf, vocab) {
+  // *************** Initialize vector array
+  const vector = [];
+
+  // *************** Build vector
+  for (const term of vocab) {
+    vector.push(tfidf[term] || 0);
+  }
+
+  // *************** Return the vector
+  return vector;
+}
+
+/**
+ * Calculates the dot product of two normalized vectors.
+ * @param {number[]} originVectorNormalized - The first normalized vector (e.g., origin vector).
+ * @param {number[]} internshipVectorNormalized - The second normalized vector (e.g., internship vector).
  * @returns {number} The dot product of the two vectors.
  */
-function CalculateDotProduct(tfIdfValuesOriginNormalized, tfIdfValuesInternshipNormalized) {
-  try {
-    // *************** Validate tfIdfValuesOriginNormalized parameter
-    if (!tfIdfValuesOriginNormalized || lodash.isEmpty(tfIdfValuesOriginNormalized)) {
-      throw new ApiError(400, 'Invalid tfIdfValuesOriginNormalized parameter provided');
-    }
+function CalculateDotProduct(originVectorNormalized, internshipVectorNormalized) {
+  // *************** Initialize dot product variable
+  let dotProduct = 0;
 
-    // *************** Validate tfIdfValuesInternshipNormalized parameter
-    if (!tfIdfValuesInternshipNormalized || lodash.isEmpty(tfIdfValuesInternshipNormalized)) {
-      throw new ApiError(400, 'Invalid tfIdfValuesInternshipNormalized parameter provided');
-    }
-
-    // *************** Initialize dot product variable
-    let dotProduct = 0;
-
-    // *************** Calculate dot product by iterating through keys
-    for (const key in tfIdfValuesOriginNormalized) {
-      if (tfIdfValuesInternshipNormalized.hasOwnProperty(key)) {
-        dotProduct += tfIdfValuesOriginNormalized[key] * tfIdfValuesInternshipNormalized[key];
-      }
-    }
-
-    // *************** Return the calculated dot product
-    return dotProduct;
-  } catch (error) {
-    // *************** Log and re-throw any errors encountered during calculation
-    console.log(error.stack);
-
-    throw error;
+  // *************** Calculate dot product
+  for (let index = 0; index < originVectorNormalized.length; index++) {
+    dotProduct += originVectorNormalized[index] * internshipVectorNormalized[index];
   }
+
+  // *************** Return the dot product
+  return dotProduct;
 }
 
 /**
- * Calculates the magnitude of a normalized TF-IDF vector.
- * @param {Object} tfIdfValuesNormalized - The normalized TF-IDF values.
+ * Calculates the magnitude of a vector.
+ * @param {number[]} vectorNormalized - The vector for which to calculate the magnitude.
  * @returns {number} The magnitude of the vector.
  */
-function CalculateMagnitude(tfIdfValuesNormalized) {
-  try {
-    // *************** Validate tfIdfValuesNormalized parameter
-    if (!tfIdfValuesNormalized || lodash.isEmpty(tfIdfValuesNormalized)) {
-      throw new ApiError(400, 'Invalid tfIdfValuesNormalized parameter provided');
-    }
+function CalculateMagnitude(vectorNormalized) {
+  // *************** Initialize magnitude variable
+  let magnitude = 0;
 
-    // *************** Initialize magnitude variable
-    let magnitude = 0;
-
-    // *************** Calculate magnitude by summing squared values
-    for (const key in tfIdfValuesNormalized) {
-      if (tfIdfValuesNormalized.hasOwnProperty(key)) {
-        magnitude += tfIdfValuesNormalized[key] * tfIdfValuesNormalized[key];
-      }
-    }
-
-    // *************** Calculate the square root of the magnitude
-    const SquaredMagnitude = Math.sqrt(magnitude);
-
-    // *************** Return the square root of the magnitude
-    return SquaredMagnitude;
-  } catch (error) {
-    // *************** Log error
-    console.log(error.stack);
-
-    // *************** Re-throw error
-    throw error;
+  // *************** Calculate magnitude
+  for (let index = 0; index < vectorNormalized.length; index++) {
+    magnitude += vectorNormalized[index] * vectorNormalized[index];
   }
+
+  // *************** Calculate the square root of the magnitude
+  const squareMagnitude = Math.sqrt(magnitude);
+
+  // *************** Return the square root of the magnitude
+  return squareMagnitude;
 }
 
 /**
@@ -149,30 +110,44 @@ async function GetSortedInternshipsByCosineSimilarity(tfIdfValuesOrigin) {
     // *************** Initialize array to store internships with similarity scores
     const internshipsWithScore = [];
 
+    // *************** Build vocabulary from origin and internships
+    const vocabulary = BuildVocabulary(tfIdfValuesOrigin, internships);
+
     // *************** Calculate cosine similarity for each internship
     for (const internship of internships) {
-      // *************** Normalize vectors for both origin and internship
-      const { tfIdfValuesOriginNormalized, tfIdfValuesInternshipNormalized } = NormalizeVectorBoth(tfIdfValuesOrigin, internship.vector);
+      // *************** Get internship vector
+      const internshipVector = internship.vector.value;
+
+      // *************** Build internship vector
+      const originVectorNormalized = BuildVector(tfIdfValuesOrigin, vocabulary);
+      const internshipVectorNormalized = BuildVector(internshipVector, vocabulary);
 
       // *************** Calculate dot product of normalized vectors
-      const dotProduct = CalculateDotProduct(tfIdfValuesOriginNormalized, tfIdfValuesInternshipNormalized);
+      const dotProduct = CalculateDotProduct(originVectorNormalized, internshipVectorNormalized);
 
       // *************** Calculate magnitude of normalized vectors
-      const magnitudeOrigin = CalculateMagnitude(tfIdfValuesOriginNormalized);
-      const magnitudeInternship = CalculateMagnitude(tfIdfValuesInternshipNormalized);
+      const magnitudeOrigin = CalculateMagnitude(originVectorNormalized);
+      const magnitudeInternship = CalculateMagnitude(internshipVectorNormalized);
+
+      // *************** Calculate total magnitude
+      const totalMagnitude = magnitudeOrigin * magnitudeInternship;
 
       // *************** Calculate cosine similarity score
-      const cosineSimilarity = dotProduct / (magnitudeOrigin * magnitudeInternship);
+      const cosineSimilarity = dotProduct / totalMagnitude;
+      const result = cosineSimilarity || 0;
 
       // *************** Add internship with score to the array
       internshipsWithScore.push({
-        ...internship,
-        score: cosineSimilarity,
+        _id: internship._id,
+        title: internship.title,
+        description: internship.description,
+        requirements: internship.requirements,
+        score: result,
       });
     }
 
-    // *************** Sort internships by score in descending order
-    const sortedInternships = internshipsWithScore.sort((document1, document2) => document2.score - document1.score);
+    // *************** Sort internships by score in descending order and limit to 10
+    const sortedInternships = internshipsWithScore.sort((document1, document2) => document2.score - document1.score).slice(0, 5);
 
     // *************** Return the sorted array of internships
     return sortedInternships;
