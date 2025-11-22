@@ -1,6 +1,7 @@
 // *************** IMPORT LIBRARY  ***************
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 
 // *************** IMPORT MODULES  ***************
 const UserModel = require('../models/users.js');
@@ -10,6 +11,9 @@ const UserValidator = require('../validators/users.validator.js');
 
 // *************** IMPORT UTILITIES  ***************
 const { ApiError } = require('../utils/common-error.js');
+
+// *************** IMPORT SERVICES ***************
+const AuthService = require('../service/auth.service.js');
 
 /**
  * Login
@@ -28,44 +32,16 @@ const { ApiError } = require('../utils/common-error.js');
  */
 async function Login(req, res) {
   try {
-    // *************** Validate request early to protect auth flow and save compute
     const { email, password } = req.body;
+
     UserValidator.ValidateLoginInput({ email, password });
 
-    // *************** Normalize inputs to ensure consistent lookup
-    const normalizedEmail = String(email).trim().toLowerCase();
+    const { user, token } = await AuthService.LoginUserService({ email, password });
 
-    // *************** Fetch user by normalized email; include password hash for verification
-    const user = await UserModel.findOne({ email: normalizedEmail }).select('_id name email password').lean();
-
-    // *************** Use a generic authentication error to avoid leaking account existence
-    if (!user) {
-      throw new ApiError(401, 'Email or password is wrong.');
-    }
-
-    // *************** Verify password against stored hash
-    const isPasswordMatch = await bcrypt.compare(password, user.password);
-    if (!isPasswordMatch) {
-      throw new ApiError(401, 'Email or password is wrong.');
-    }
-
-    // *************** Ensure JWT secret is configured to prevent weak token generation
-    const jwtSecret = process.env.SECRET_KEY;
-    if (!jwtSecret) {
-      throw new ApiError(500, 'Server configuration error.');
-    }
-
-    // *************** Generate short-lived token; rotate/refresh strategy can be added later
-    const token = jwt.sign({ userId: String(user._id) }, jwtSecret, { expiresIn: '1d' });
-    if (!token) {
-      throw new ApiError(500, 'Cannot generate token.');
-    }
-
-    // *************** Build minimal safe response payload; never return password/hash
     const responsePayload = {
       status: 'success',
       data: {
-        _id: String(user._id),
+        _id: user._id,
         name: user.name,
         email: user.email,
         token,
@@ -75,10 +51,8 @@ async function Login(req, res) {
 
     return res.status(200).json(responsePayload);
   } catch (error) {
-    // *************** Log full stack for troubleshooting in thesis scope without leaking to client
     console.error(error.stack);
 
-    // *************** Handle known application errors with consistent output
     if (error instanceof ApiError) {
       const responsePayload = {
         status: 'failed',
@@ -88,7 +62,6 @@ async function Login(req, res) {
       return res.status(error.code).json(responsePayload);
     }
 
-    // *************** Fallback for unexpected server errors without exposing internals
     const responsePayload = {
       status: 'failed',
       message: 'Internal Server Error',
@@ -102,78 +75,39 @@ async function Login(req, res) {
  * Register
  *
  * PURPOSE:
- *   Create a new user account with normalized inputs and secure password hashing.
+ *   Handles new user registration by creating User and Student records.
  *
  * RATIONALE:
- *   Protects the auth boundary with early validation, prevents duplicate accounts via DB constraint,
- *   and returns a minimal, safe response payload without leaking sensitive fields.
+ *   Validates input, delegates creation logic to AuthService for transaction safety,
+ *   and handles duplicate email errors gracefully.
  *
- * @param {import('express').Request} req - Express request containing name, email, password in body.
+ * @async
+ * @function Register
+ * @param {import('express').Request} req - Express request containing name, email, and password.
  * @param {import('express').Response} res - Express response used to send JSON payloads.
- * @returns {Promise<import('express').Response>} Express JSON response with status, message, and data.
- *
- * @throws {ApiError} 400 when input invalid or email already exists; 500 on unexpected server errors.
+ * @returns {Promise<import('express').Response>} Express JSON response with status 201 and user data.
  */
 async function Register(req, res) {
   try {
-    // *************** Validate request early to protect auth flow and save compute
     const { name, email, password } = req.body;
+
     UserValidator.ValidateRegisterInput({ name, email, password });
 
-    // *************** Normalize inputs to avoid duplicate variants and casing discrepancies
-    const normalizedEmail = String(email).trim().toLowerCase();
-    const normalizedName = String(name).trim();
+    const { newUser, newStudent } = await AuthService.RegisterUserService({ name, email, password });
 
-    // *************** Fast existence check for UX; DB unique index remains the final guard
-    const existingUser = await UserModel.exists({ email: normalizedEmail });
-    if (existingUser) {
-      throw new ApiError(400, 'Email already exists.');
-    }
-
-    // *************** Hash password using env-driven cost to balance security and performance
-    const configuredSaltRounds = Number(process.env.BCRYPT_SALT_ROUNDS);
-    const saltRounds = Number.isInteger(configuredSaltRounds) && configuredSaltRounds > 0 ? configuredSaltRounds : 10;
-
-    const bcryptSalt = await bcrypt.genSalt(saltRounds);
-    const hashedPassword = await bcrypt.hash(password, bcryptSalt);
-    if (!hashedPassword) {
-      throw new ApiError(500, 'Cannot hash password.');
-    }
-
-    // *************** Create user with normalized values; rely on unique index to prevent races
-    const newUser = await UserModel.create({
-      name: normalizedName,
-      email: normalizedEmail,
-      password: hashedPassword,
-    });
-    if (!newUser) {
-      throw new ApiError(500, 'Cannot create user.');
-    }
-
-    // *************** Create associated student profile
-    const newStudent = await StudentModel.create({
-      user_id: newUser._id,
-    });
-
-    // *************** Confirm student profile creation succeeded
-    if (!newStudent) {
-      throw new ApiError(500, 'Cannot create student profile.');
-    }
-
-    // *************** Build minimal safe response payload; never include password or internals
     const responsePayload = {
       status: 'success',
       data: {
-        _id: String(newUser._id),
-        name: normalizedName,
-        email: normalizedEmail,
+        _id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        student_id: newStudent._id,
       },
-      message: 'Successfully registered to INTERNMATCH platform.',
+      message: 'Successfully registered to the platform.',
     };
 
     return res.status(201).json(responsePayload);
   } catch (error) {
-    // *************** Log stack for debugging in thesis scope without leaking to client
     console.error(error.stack);
 
     // *************** Collapse duplicate key race condition into a client-friendly message
@@ -186,7 +120,6 @@ async function Register(req, res) {
       return res.status(400).json(responsePayload);
     }
 
-    // *************** Handle known application errors with consistent structure
     if (error instanceof ApiError) {
       const responsePayload = {
         status: 'failed',
@@ -196,7 +129,6 @@ async function Register(req, res) {
       return res.status(error.code).json(responsePayload);
     }
 
-    // *************** Fallback for unexpected server errors without exposing internals
     const responsePayload = {
       status: 'failed',
       message: 'Internal Server Error',
