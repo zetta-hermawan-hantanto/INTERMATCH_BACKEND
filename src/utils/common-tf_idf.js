@@ -7,7 +7,7 @@ const VectorMetaModel = require('../models/vector_meta.model');
 const CompanyModel = require('../models/companies.model');
 
 // *************** IMPORT GLOBALS ***************
-const { STOP_WORD_SET } = require('./globals');
+const { STOP_WORD_SET } = require('./common-global');
 
 /**
  * BuildDocumentText
@@ -102,7 +102,25 @@ function TokenizeText(text) {
     }
 
     // *************** Split text into tokens based on whitespace and remove stop words
-    const tokenizedText = text.split(/\s+/).filter((token) => token && !STOP_WORD_SET.has(token));
+    const tokenizedText = text.split(/\s+/).filter((token) => {
+      // *************** Normalize token
+      const normalizedToken = token.trim();
+
+      // *************** Remove empty tokens
+      if (!normalizedToken) return false;
+
+      // *************** Remove stop words
+      if (STOP_WORD_SET.has(normalizedToken)) return false;
+
+      // *************** Remove 1–2 length tokens
+      if (normalizedToken.length <= 2) return false;
+
+      // *************** Remove numbers
+      if (/^[0-9]+(\.[0-9]+)?$/.test(normalizedToken)) return false;
+
+      // *************** Return true if token passes all filters
+      return true;
+    });
 
     // *************** Return the array of tokens
     return tokenizedText;
@@ -374,8 +392,7 @@ async function ComputeTFIDFInternships() {
     // *************** Prepare vector metadata for storage
     const vectorMetaData = {
       name: 'internship_v1',
-      vocabulary: Object.keys(inverseDocumentFrequencies),
-      idf_values: Object.values(inverseDocumentFrequencies),
+      idf_values: inverseDocumentFrequencies,
     };
 
     // *************** Store the vector metadata in the database
@@ -429,4 +446,8 @@ async function ComputeTFIDFInternships() {
 // *************** EXPORT MODULES ***************
 module.exports = {
   ComputeTFIDFInternships,
+  CalculateTermFrequencies,
+  BuildDocumentText,
+  TokenizeText,
+  CalculateTFIDF,
 };

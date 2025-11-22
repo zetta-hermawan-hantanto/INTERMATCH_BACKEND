@@ -20,11 +20,8 @@ const VectorMetaSchema = new Schema(
       lowercase: true,
     },
 
-    // Vocabulary terms
-    vocabulary: [{ type: String }],
-
     // Corresponding IDF values for the vocabulary terms
-    idf_values: [{ type: Number }],
+    idf_values: { type: Map, of: Number },
   },
   {
     // Enable createdAt and updatedAt timestamps automatically
