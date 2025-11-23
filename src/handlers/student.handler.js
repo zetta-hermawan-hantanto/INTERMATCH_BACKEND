@@ -9,6 +9,65 @@ const { ApiError } = require('../utils/common-error');
 
 // *************** IMPORT VALIDATORS ***************
 const StudentValidator = require('../validators/student.validator');
+const CommonValidator = require('../validators/common.validator');
+
+// *************** IMPORT SERVICES ***************
+const StudentService = require('../service/student.service');
+
+/**
+ * @description Retrieves a student's profile by their ID.
+ * @param {object} req - The request object, containing student_id in params.
+ * @param {object} res - The response object.
+ * @returns {Promise<void>} A promise that resolves when the response is sent.
+ */
+async function GetStudentProfile(req, res) {
+  try {
+    // *************** Extract student ID from request parameters
+    const { student_id } = req.params;
+
+    // *************** Validate the extracted student ID format
+    CommonValidator.ValidateObjectId(student_id);
+
+    // *************** Fetch student profile using the service layer
+    const studentProfile = await StudentService.GetStudentProfileService(student_id);
+
+    // *************** Handle case where student profile is not found
+    if (!studentProfile) {
+      throw new ApiError(404, 'Student not found');
+    }
+
+    // *************** Build success response payload
+    const responsePayload = {
+      status: 'success',
+      message: 'Student profile retrieved successfully',
+      data: studentProfile,
+    };
+
+    // *************** Send successful response
+    return res.status(200).json(responsePayload);
+  } catch (error) {
+    // *************** Log the full error stack for debugging
+    console.error(error.stack);
+
+    // *************** Handle known application errors with consistent structure
+    if (error instanceof ApiError) {
+      const responsePayload = {
+        status: 'failed',
+        message: error.message,
+        data: null,
+      };
+      return res.status(error.code).json(responsePayload);
+    }
+
+    // *************** Fallback for unexpected server errors without exposing internals
+    const responsePayload = {
+      status: 'failed',
+      message: 'Internal Server Error',
+      data: null,
+    };
+    return res.status(500).json(responsePayload);
+  }
+}
 
 /**
  * UpdateStudentProfile
@@ -138,4 +197,5 @@ async function UpdateStudentProfile(req, res) {
 // *************** EXPORT MODULES ***************
 module.exports = {
   UpdateStudentProfile,
+  GetStudentProfile,
 };

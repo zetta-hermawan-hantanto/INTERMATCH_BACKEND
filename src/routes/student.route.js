@@ -6,6 +6,7 @@ const StudentHandler = require('../handlers/student.handler');
 
 const router = express.Router();
 
+router.get('/profile/:id', StudentHandler.GetStudentProfile);
 router.put('/profile/:id', StudentHandler.UpdateStudentProfile);
 
 // *************** EXPORT MODULES ***************
