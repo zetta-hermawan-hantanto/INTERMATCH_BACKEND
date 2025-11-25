@@ -69,6 +69,14 @@ const studentSchema = new Schema(
       required: true,
       ref: 'users',
     },
+
+    // Reference to the liked internships (ObjectId ref 'internships')
+    liked_internships: [
+      {
+        type: Schema.ObjectId,
+        ref: 'internships',
+      },
+    ],
   },
   {
     // Enable createdAt and updatedAt timestamps automatically

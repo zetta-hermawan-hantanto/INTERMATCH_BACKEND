@@ -1,12 +1,15 @@
 // *************** IMPORT LIBRARY ***************
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const dotenv = require('dotenv');
 
 // *************** IMPORT MODULES  ***************
 const UserModel = require('../models/users.js');
 const StudentModel = require('../models/students.model');
 
 // *************** GLOBAL VARIABLES ***************
+dotenv.config();
 const SALT_ROUNDS = Number(process.env.SALT_ROUNDS);
 const JWT_SECRET = process.env.SECRET_KEY;
 const DUMMY_HASH = '$2b$10$8.7e/m.e.g.a.l.o.v.a.n.i.a.C.o.m.p.l.e.x.H.a.s.h.1';

@@ -10,6 +10,7 @@ const MongooseUtilities = require('./database/mongoose.js');
 const UserRoutes = require('./routes/user.route.js');
 const InternshipRoutes = require('./routes/internship.route.js');
 const StudentRoutes = require('./routes/student.route.js');
+const CompanyRoutes = require('./routes/company.route.js');
 
 // *************** IMPORT MIDDLEWARE ***************
 const { AuthMiddleware } = require('./middleware/auth.middleware.js');
@@ -26,6 +27,7 @@ app.use(cors());
 app.use('/users', UserRoutes);
 app.use('/internships', AuthMiddleware, InternshipRoutes);
 app.use('/students', AuthMiddleware, StudentRoutes);
+app.use('/companies', AuthMiddleware, CompanyRoutes);
 
 const startServer = async () => {
   await MongooseUtilities.ConnectToDatabase();
