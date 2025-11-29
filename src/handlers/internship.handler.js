@@ -21,7 +21,7 @@ const { ValidateSearchInternshipInput } = require('../validators/internship.vali
 const CommonValidator = require('../validators/common.validator');
 
 // *************** IMPORT SERVICES ***************
-const { GetRecommendationSearchBasedService } = require('../service/internship.service');
+const { GetRecommendationSearchBasedService, GetRecommendationHybridService } = require('../service/internship.service');
 
 // *************** GLOBAL VARIABLES ***************
 const mappingFunctions = {
@@ -188,7 +188,7 @@ async function GetRecommendationInternshipsBasedProfile(req, res) {
     }
 
     // *************** Get internships sorted by cosine similarity with student's profile
-    const sortedInternships = await GetSortedInternshipsByCosineSimilarity(tfidfValues);
+    const sortedInternships = await GetSortedInternshipsByCosineSimilarity(tfidfValues, 5);
     // *************** Validate sorted internships
     if (!sortedInternships || lodash.isEmpty(sortedInternships)) {
       throw new ApiError(404, 'Sorted internships not found');
@@ -667,22 +667,90 @@ async function GetInternshipsByCompany(req, res) {
  */
 async function GetInternshipById(req, res) {
   try {
+    // *************** Extract internship_id from request parameters
     const { internship_id } = req.params;
+    // *************** Validate the extracted internship_id to ensure it's a valid ObjectId
     ValidateObjectId(internship_id, 'internship_id');
 
+    // *************** Find the internship by ID, populate company details, and exclude vector fields
     const internship = await InternshipsModel.findById(internship_id).populate('company').select('-vector -vector_histories').lean();
 
+    // *************** If no internship is found, throw an ApiError
     if (!internship) {
       throw new ApiError(404, 'Internship not found');
     }
 
+    // *************** Send a success response with the fetched internship data
     return res.status(200).json({
       status: 'success',
       message: 'Internship details fetched successfully',
       data: internship,
     });
   } catch (error) {
+    // *************** Log the full error stack for debugging purposes
     console.error(error.stack);
+    // *************** Check if the error is an instance of a custom ApiError
+    if (error instanceof ApiError) {
+      // *************** Prepare the error response payload for custom API errors
+      return res.status(error.code).json({
+        status: 'failed',
+        message: error.message,
+        data: null,
+      });
+    }
+    // *************** Prepare a generic error response payload for unexpected errors
+    return res.status(500).json({
+      status: 'failed',
+      message: 'Internal Server Error',
+      data: null,
+    });
+  }
+}
+
+/**
+ * GetHybridInternshipProfileAndLikes
+ * Retrieves hybrid internship recommendations based on a student's profile and liked internships.
+ *
+ * Flow:
+ * - Extracts `student_id` from `req.params`.
+ * - Validates the `student_id` using `CommonValidator.ValidateObjectId`.
+ * - Calls `GetRecommendationHybridService` with the student ID to get recommendations.
+ * - Prepares a success response payload with the hybrid recommendations.
+ * - Returns the success response.
+ *
+ * Error handling:
+ * - Throws 400 ApiError for invalid object IDs.
+ * - Catches ApiError and sends structured JSON error response.
+ * - Catches unexpected errors and returns 500 with a generic message.
+ *
+ * @async
+ * @function GetHybridInternshipProfileAndLikes
+ * @param {import('express').Request} req - Express request object containing `student_id` in `req.params`.
+ * @param {import('express').Response} res - Express response object used to send JSON response.
+ * @returns {Promise<void>} Sends a JSON response with status, message, and hybrid recommendation data.
+ */
+async function GetHybridInternshipProfileAndLikes(req, res) {
+  try {
+    // *************** Extract the student ID from the request parameters
+    const { student_id } = req.params;
+
+    // *************** Validate the student ID
+    CommonValidator.ValidateObjectId(student_id, 'student_id');
+
+    // *************** Call the hybrid recommendation service
+    const result = await GetRecommendationHybridService({ studentId: student_id });
+
+    // *************** Prepare success response payload
+    return res.status(200).json({
+      status: 'success',
+      message: 'Hybrid recommendation fetched successfully',
+      data: result,
+    });
+  } catch (error) {
+    // *************** Log the full error stack for debugging
+    console.error(error.stack);
+
+    // *************** Handle known application errors with consistent structure
     if (error instanceof ApiError) {
       return res.status(error.code).json({
         status: 'failed',
@@ -690,6 +758,7 @@ async function GetInternshipById(req, res) {
         data: null,
       });
     }
+    // *************** Fallback for unexpected server errors without exposing internals
     return res.status(500).json({
       status: 'failed',
       message: 'Internal Server Error',
@@ -709,4 +778,5 @@ module.exports = {
   GetLikedInternships,
   GetInternshipsByCompany,
   GetInternshipById,
+  GetHybridInternshipProfileAndLikes,
 };

@@ -97,7 +97,7 @@ function CalculateMagnitude(vectorNormalized) {
  * @param {Object} tfIdfValuesOrigin - The TF-IDF values of the origin text (e.g., user profile or search query).
  * @returns {Promise<Array>} A promise that resolves to an array of internships sorted by cosine similarity score.
  */
-async function GetSortedInternshipsByCosineSimilarity(tfIdfValuesOrigin) {
+async function GetSortedInternshipsByCosineSimilarity(tfIdfValuesOrigin, totalDoc) {
   try {
     // *************** Validate tfIdfValuesOrigin parameter
     if (!tfIdfValuesOrigin || lodash.isEmpty(tfIdfValuesOrigin)) {
@@ -113,20 +113,22 @@ async function GetSortedInternshipsByCosineSimilarity(tfIdfValuesOrigin) {
     // *************** Build vocabulary from origin and internships
     const vocabulary = BuildVocabulary(tfIdfValuesOrigin, internships);
 
+    // *************** Build origin vector and calculate its magnitude
+    const originVectorNormalized = BuildVector(tfIdfValuesOrigin, vocabulary);
+    const magnitudeOrigin = CalculateMagnitude(originVectorNormalized);
+
     // *************** Calculate cosine similarity for each internship
     for (const internship of internships) {
       // *************** Get internship vector
       const internshipVector = internship.vector.value;
 
       // *************** Build internship vector
-      const originVectorNormalized = BuildVector(tfIdfValuesOrigin, vocabulary);
       const internshipVectorNormalized = BuildVector(internshipVector, vocabulary);
 
       // *************** Calculate dot product of normalized vectors
       const dotProduct = CalculateDotProduct(originVectorNormalized, internshipVectorNormalized);
 
       // *************** Calculate magnitude of normalized vectors
-      const magnitudeOrigin = CalculateMagnitude(originVectorNormalized);
       const magnitudeInternship = CalculateMagnitude(internshipVectorNormalized);
 
       // *************** Calculate total magnitude
@@ -147,7 +149,7 @@ async function GetSortedInternshipsByCosineSimilarity(tfIdfValuesOrigin) {
     }
 
     // *************** Sort internships by score in descending order and limit to 10
-    const sortedInternships = internshipsWithScore.sort((document1, document2) => document2.score - document1.score).slice(0, 5);
+    const sortedInternships = internshipsWithScore.sort((document1, document2) => document2.score - document1.score).slice(0, totalDoc);
 
     // *************** Return the sorted array of internships
     return sortedInternships;

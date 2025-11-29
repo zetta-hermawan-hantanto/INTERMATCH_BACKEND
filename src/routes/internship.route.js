@@ -13,6 +13,7 @@ router.get('/get-location-internship', InternshipHandler.GetLocationInternship);
 router.get('/get-like-internships/:student_id', InternshipHandler.GetLikedInternships);
 router.get('/get-company-internships/:company_id', InternshipHandler.GetInternshipsByCompany);
 router.get('/get-internship-by-id/:internship_id', InternshipHandler.GetInternshipById);
+router.get('/get-hybrid-internship-profile-and-likes/:student_id', InternshipHandler.GetHybridInternshipProfileAndLikes);
 
 router.post('/trigger-function-manually', InternshipHandler.TriggerFunctionManually);
 router.post('/link-unlike-internship/:student_id/:internship_id', InternshipHandler.LikeUnlikeInternship);

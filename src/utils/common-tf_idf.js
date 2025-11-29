@@ -443,6 +443,118 @@ async function ComputeTFIDFInternships() {
   }
 }
 
+/**
+ * Calculates the average TF-IDF values across multiple TF-IDF vectors.
+ * This function takes an array of TF-IDF objects (where each object maps terms to their TF-IDF scores)
+ * and computes the average score for each term across all provided vectors.
+ *
+ * @function AverageTFIDF
+ * @param {Array<Object.<string, number>>} allTfIdfValues - An array of TF-IDF objects. Each object represents a document's TF-IDF vector,
+ *                                                          mapping terms (strings) to their TF-IDF scores (numbers).
+ * @returns {Promise<Object.<string, number>>} A promise that resolves to an object containing the average TF-IDF scores for each term.
+ *                                              Returns an empty object if `allTfIdfValues` is empty or null.
+ * @throws {Error} If an error occurs during the averaging process.
+ */
+function AverageTFIDF(allTfIdfValues) {
+  try {
+    // *************** Handle empty or null input array
+    if (!allTfIdfValues || !allTfIdfValues.length) {
+      return {};
+    }
+
+    // *************** Get the total number of TF-IDF vectors for averaging
+    const totalLength = allTfIdfValues.length;
+
+    // *************** Initialize an object to accumulate TF-IDF sums for each term
+    const tfIdfAverage = {};
+
+    // *************** Iterate through each TF-IDF vector in the input array
+    for (const tfIdfValue of allTfIdfValues) {
+      // *************** Iterate through each term and its TF-IDF score in the current vector
+      for (const [term, value] of Object.entries(tfIdfValue)) {
+        // *************** Accumulate the TF-IDF score for the current term
+        if (tfIdfAverage[term]) {
+          tfIdfAverage[term] += value;
+        } else {
+          // *************** If the term is encountered for the first time, initialize its sum
+          tfIdfAverage[term] = value;
+        }
+      }
+    }
+
+    // *************** Divide the accumulated sum of each term by the total number of vectors to get the average
+    for (const term in tfIdfAverage) {
+      tfIdfAverage[term] /= totalLength;
+    }
+
+    // *************** Return the object containing the average TF-IDF scores
+    return tfIdfAverage;
+  } catch (error) {
+    // *************** Log the error stack for debugging purposes
+    console.log(error.stack);
+
+    // *************** Re-throw the error to be handled by the caller
+    throw error;
+  }
+}
+
+/**
+ * Calculates a combined TF-IDF vector by weighting a student's profile TF-IDF with a combined TF-IDF from liked internships.
+ * The weighting factor (alpha) adjusts based on the number of liked internships, giving more weight to the student profile
+ * when fewer internships are liked, and more weight to liked internships as their count increases.
+ *
+ * @param {Object.<string, number>} tfIdfStudentProfile - An object representing the TF-IDF vector of the student's profile,
+ *                                                        where keys are terms and values are their TF-IDF scores.
+ * @param {Object.<string, number>} combinedTFIDF - An object representing the combined TF-IDF vector from previously liked internships,
+ *                                                  where keys are terms and values are their TF-IDF scores.
+ * @param {number} totalLikedInternships - An sum of liked internships, used to determine the weighting factor.
+ * @returns {Object.<string, number>} An object representing the new combined TF-IDF vector.
+ */
+function CalculateCombinedTFIDF({ tfIdfStudentProfile, combinedTFIDF, totalLikedInternships }) {
+  try {
+    // *************** Create a set of all unique terms from both the student profile and the combined liked internships TF-IDF vectors
+    const terms = new Set([...Object.keys(tfIdfStudentProfile), ...Object.keys(combinedTFIDF)]);
+
+    // *************** Initialize an empty object to store the newly calculated combined TF-IDF scores
+    const newCombinedTFIDF = {};
+
+    // *************** Initialize the weighting factor (alpha) for the student profile. Default to giving more weight to student profile.
+    let alpha = 0.6;
+
+    // *************** Adjust the alpha weighting factor based on the number of liked internships
+    if (totalLikedInternships) {
+      // *************** If 3 to 10 internships are liked, reduce student profile weight slightly
+      if (totalLikedInternships >= 3 && totalLikedInternships <= 10) {
+        alpha = 0.4;
+      }
+      // *************** If more than 10 internships are liked, significantly reduce student profile weight, giving more to liked internships
+      else if (totalLikedInternships > 10) {
+        alpha = 0.2;
+      }
+    }
+
+    // *************** Iterate through each unique term to calculate its combined TF-IDF score
+    for (const term of Array.from(terms)) {
+      // *************** Get the TF-IDF score for the term from the student profile, default to 0 if not present
+      const studentValue = tfIdfStudentProfile[term] || 0;
+      // *************** Get the TF-IDF score for the term from the existing combined liked internships, default to 0 if not present
+      const internshipValue = combinedTFIDF[term] || 0;
+
+      // *************** Calculate the new combined TF-IDF score using the weighted average formula
+      newCombinedTFIDF[term] = alpha * studentValue + (1 - alpha) * internshipValue;
+    }
+
+    // *************** Return the newly calculated combined TF-IDF vector
+    return newCombinedTFIDF;
+  } catch (error) {
+    // *************** Log the error stack for debugging purposes
+    console.log(error.stack);
+
+    // *************** Re-throw the error to be handled by the caller
+    throw error;
+  }
+}
+
 // *************** EXPORT MODULES ***************
 module.exports = {
   ComputeTFIDFInternships,
@@ -450,4 +562,6 @@ module.exports = {
   BuildDocumentText,
   TokenizeText,
   CalculateTFIDF,
+  AverageTFIDF,
+  CalculateCombinedTFIDF,
 };
