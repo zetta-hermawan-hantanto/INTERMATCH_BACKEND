@@ -1,5 +1,6 @@
 // *************** IMPORT LIBRARIES ***************
 const lodash = require('lodash');
+const dotenv = require('dotenv');
 
 // *************** IMPORT MODULES ***************
 const InternshipsModel = require('../models/internships.model');
@@ -18,6 +19,9 @@ const {
   CalculateCombinedTFIDF,
 } = require('../utils/common-tf_idf');
 const { GetSortedInternshipsByCosineSimilarity } = require('../utils/common-cosine_similarity');
+
+// *************** CONFIGURE DOTENV ***************
+dotenv.config();
 
 /**
  * Retrieves internship recommendations based on search criteria.
@@ -55,30 +59,31 @@ async function GetRecommendationSearchBasedService({ keyword, location, workMode
   });
 
   // *************** Handle industry filtering if provided
+
+  // *************** Lookup company details to access industry information
+  pipeline.push({
+    $lookup: {
+      from: 'companies',
+      localField: 'company',
+      foreignField: '_id',
+      as: 'company',
+    },
+  });
+
+  // *************** Extract the industry from the company document
+  pipeline.push({
+    $addFields: {
+      company: {
+        $arrayElemAt: ['$company', 0],
+      },
+    },
+  });
+
   if (industry) {
-    // *************** Lookup company details to access industry information
-    pipeline.push({
-      $lookup: {
-        from: 'companies',
-        localField: 'company',
-        foreignField: '_id',
-        as: 'company',
-      },
-    });
-
-    // *************** Extract the industry from the company document
-    pipeline.push({
-      $addFields: {
-        industry: {
-          $arrayElemAt: ['$company.industry', 0],
-        },
-      },
-    });
-
     // *************** Match by the specified industry
     pipeline.push({
       $match: {
-        industry: industry,
+        'company.industry_field': industry,
       },
     });
   }
@@ -99,7 +104,6 @@ async function GetRecommendationSearchBasedService({ keyword, location, workMode
         {
           // *************** Exclude sensitive or unnecessary fields
           $project: {
-            company: 0,
             vector: 0,
             vector_histories: 0,
           },
@@ -158,7 +162,7 @@ async function GetRecommendationHybridService({ studentId }) {
   const termFrequenciesStudentProfile = CalculateTermFrequencies(tokenizedTextStudentProfile);
 
   // *************** Get the latest vector meta information from the database.
-  const latestVectorMetaName = process.env.VECTOR_META_NAME;
+  const latestVectorMetaName = process.env.VECTOR_META_LATEST;
   const vectorMeta = await VectorMetaModel.findOne({ name: latestVectorMetaName }).select('idf_values').lean();
   // *************** Throw an error if vector meta is not found.
   if (!vectorMeta) {

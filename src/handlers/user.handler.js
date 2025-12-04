@@ -36,7 +36,7 @@ async function Login(req, res) {
 
     UserValidator.ValidateLoginInput({ email, password });
 
-    const { user, token } = await AuthService.LoginUserService({ email, password });
+    const { user, token, studentId } = await AuthService.LoginUserService({ email, password });
 
     const responsePayload = {
       status: 'success',
@@ -44,6 +44,7 @@ async function Login(req, res) {
         _id: user._id,
         name: user.name,
         email: user.email,
+        student_id: studentId,
         token,
       },
       message: 'Successfully login into INTERNMATCH platform.',

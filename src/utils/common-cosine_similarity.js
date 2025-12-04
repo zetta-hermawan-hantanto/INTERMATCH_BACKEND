@@ -105,7 +105,13 @@ async function GetSortedInternshipsByCosineSimilarity(tfIdfValuesOrigin, totalDo
     }
 
     // *************** Retrieve all internships from the database
-    const internships = await InternshipModel.find({}).lean();
+    const internships = await InternshipModel.find({})
+      .populate([
+        {
+          path: 'company',
+        },
+      ])
+      .lean();
 
     // *************** Initialize array to store internships with similarity scores
     const internshipsWithScore = [];
@@ -145,6 +151,9 @@ async function GetSortedInternshipsByCosineSimilarity(tfIdfValuesOrigin, totalDo
         description: internship.description,
         requirements: internship.requirements,
         score: result,
+        company: internship.company,
+        work_mode: internship.work_mode,
+        location_program: internship.location_program,
       });
     }
 

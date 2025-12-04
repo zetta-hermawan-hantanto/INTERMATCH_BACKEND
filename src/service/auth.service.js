@@ -8,6 +8,9 @@ const dotenv = require('dotenv');
 const UserModel = require('../models/users.js');
 const StudentModel = require('../models/students.model');
 
+// *************** IMPORT UTILITIES ***************
+const { ApiError } = require('../utils/common-error');
+
 // *************** GLOBAL VARIABLES ***************
 dotenv.config();
 const SALT_ROUNDS = Number(process.env.SALT_ROUNDS);
@@ -104,9 +107,13 @@ async function LoginUserService({ email, password }) {
     // *************** Generate short-lived token; rotate/refresh strategy can be added later
     const token = jwt.sign({ userId: String(user._id) }, JWT_SECRET, { expiresIn: '1d' });
 
+    // *************** Find the student ID associated with the user
+    const studentId = await StudentModel.findOne({ user_id: user._id }).select('_id').lean();
+
     return {
       user,
       token,
+      studentId: studentId?._id,
     };
   } catch (error) {
     throw error;

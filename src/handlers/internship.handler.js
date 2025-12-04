@@ -270,7 +270,7 @@ async function GetRecommendationSearchBased(req, res) {
     const result = await GetRecommendationSearchBasedService({
       keyword,
       location,
-      work_mode,
+      workMode: work_mode,
       industry,
       page,
       limit,
@@ -381,7 +381,7 @@ async function GetLocationInternship(req, res) {
  * Retrieves a list of distinct internship industries from the database.
  *
  * Flow:
- * - Queries the database to get distinct values for 'preferred_industry' from the CompaniesModel.
+ * - Queries the database to get distinct values for 'industry_field' from the CompaniesModel.
  * - Returns the list of unique industries.
  *
  * Error handling:
@@ -396,7 +396,7 @@ async function GetLocationInternship(req, res) {
  */
 async function GetIndustryFieldsOfInternship(req, res) {
   try {
-    const industries = await CompaniesModel.distinct('preferred_industry');
+    const industries = await CompaniesModel.distinct('industry_field');
 
     // *************** Prepare success response payload
     const responsePayload = {
@@ -461,6 +461,7 @@ async function LikeUnlikeInternship(req, res) {
     // *************** Extract the student and internship IDs from the request parameters
     const { student_id, internship_id } = req.params;
 
+
     // *************** Validate the student and internship IDs
     CommonValidator.ValidateObjectId(student_id, 'student_id');
     CommonValidator.ValidateObjectId(internship_id, 'internship_id');
@@ -472,7 +473,7 @@ async function LikeUnlikeInternship(req, res) {
     });
 
     // *************** Prepare the update query
-    let queryUpdate = {}; // Changed to `let` as it's reassigned
+    let queryUpdate = {};
 
     // *************** If the internship is already liked, remove it from the liked_internships array
     if (isInternshipLiked) {
